@@ -1,0 +1,172 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BeeNet PPPoE Checker</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #071522;
+      color: #eef6ff;
+    }
+
+    main {
+      max-width: 460px;
+      margin: 25px auto;
+    }
+
+    .panel {
+      background: #10283b;
+      border: 1px solid #23455f;
+      border-radius: 16px;
+      padding: 20px;
+    }
+
+    h2 { color: #43e0d0; }
+
+    input, button {
+      box-sizing: border-box;
+      width: 100%;
+      padding: 13px;
+      margin-top: 10px;
+      border-radius: 9px;
+      font-size: 16px;
+    }
+
+    input {
+      background: #071522;
+      color: white;
+      border: 1px solid #42627a;
+    }
+
+    button {
+      background: #13b8a6;
+      color: #041a22;
+      border: 0;
+      font-weight: bold;
+    }
+
+    button:disabled { opacity: 0.6; }
+
+    #result {
+      margin-top: 18px;
+      padding: 14px;
+      border-radius: 10px;
+      background: #071522;
+      overflow-wrap: anywhere;
+    }
+
+    .online { color: #4ef0ad; }
+    .offline { color: #ff8585; }
+    .muted { color: #b7c9d9; font-size: 13px; }
+  </style>
+</head>
+
+<body>
+<main>
+  <div class="panel">
+    <h2>BeeNet PPPoE</h2>
+    <p class="muted">Pemeriksaan status pelanggan</p>
+
+    <form id="searchForm">
+      <input
+        id="username"
+        maxlength="64"
+        placeholder="Masukkan username PPPoE"
+        autocomplete="off"
+        required
+      >
+      <button id="searchButton" type="submit">
+        Periksa Pelanggan
+      </button>
+    </form>
+
+    <div id="result" aria-live="polite">
+      Masukkan username untuk memulai.
+    </div>
+  </div>
+</main>
+
+<script>
+  const tg = window.Telegram?.WebApp;
+  tg?.ready();
+  tg?.expand();
+
+  const form = document.getElementById("searchForm");
+  const result = document.getElementById("result");
+  const button = document.getElementById("searchButton");
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const username = document
+      .getElementById("username").value.trim();
+
+    if (!username) return;
+
+    if (!tg?.initData) {
+      result.textContent =
+        "Buka aplikasi ini melalui tombol di Telegram.";
+      return;
+    }
+
+    button.disabled = true;
+    result.textContent = "Sedang memeriksa...";
+
+    try {
+      const response = await fetch(
+        "/api/pppoe?username=" + encodeURIComponent(username),
+        {
+          headers: {
+            "X-Telegram-Init-Data": tg.initData
+          }
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Permintaan gagal");
+      }
+
+      result.replaceChildren();
+
+      if (!data.found) {
+        result.textContent = data.message;
+        return;
+      }
+
+      const title = document.createElement("h3");
+      title.textContent = data.username + " — " + data.status;
+      title.className =
+        data.status === "ONLINE" ? "online" : "offline";
+      result.appendChild(title);
+
+      const details = document.createElement("p");
+      details.textContent =
+        "IP: " + (data.ip || "-") +
+        "\nUptime: " + (data.uptime || "-");
+      details.style.whiteSpace = "pre-line";
+      result.appendChild(details);
+
+      const note = document.createElement("p");
+      note.className = "muted";
+      note.textContent =
+        "DEMO: data simulasi, bukan data router langsung.";
+      result.appendChild(note);
+
+    } catch (error) {
+      result.textContent = error.message;
+    } finally {
+      button.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
